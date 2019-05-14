@@ -4,6 +4,7 @@ import OpeningHours.data.*
 import OpeningHours.domain.model.*
 import OpeningHours.domain.utils.ConvertException
 import OpeningHours.domain.utils.range
+import OpeningHours.domain.utils.values
 import java.time.DayOfWeek
 import java.util.*
 
@@ -78,6 +79,106 @@ object WorkingHoursConverter {
         return RestaurantData(result)
     }
 
+    fun getRestaurantDataNew(extRestaurantData: ExtRestaurantData): RestaurantData {
+        var currentDay = getFirstDayWithNonEmptyWorkingHours(extRestaurantData) ?: return RestaurantData(emptyMap())
+
+        val result = mutableMapOf<DayOfWeek, WorkingState>()
+        while (isAllDaysFilled(result).not()) {
+            if (currentDay in result) {
+                currentDay = currentDay.plus(1)
+                continue
+            }
+
+            val openingHours = extRestaurantData.getOpeningHours(currentDay)
+
+            if (openingHours.isEmpty()) {
+                result[currentDay] = WorkingState.Closed
+                currentDay = currentDay.plus(1)
+                continue
+            }
+
+            if (openingHours.size == 1 && openingHours[0].type == ExtType.CLOSE) {
+                val workingHours = getWorkingHours(
+                        ExtWorkingOperationTime(
+                                ExtOpeningHour(ExtType.OPEN, 0),
+                                currentDay
+                        ),
+                        ExtWorkingOperationTime(
+                                openingHours[0],
+                                currentDay
+                        )
+                )
+                result[currentDay] = WorkingState.Working(listOf(workingHours))
+                currentDay = currentDay.plus(1)
+                continue
+            }
+
+            // if currentDayOpeningHours starts with ExtType.CLOSE,
+            // it means, that previous working day was closed today, so we need
+            // start with the next one
+            val startIndex = if (openingHours.first().type == ExtType.OPEN) {
+                0
+            } else {
+                1
+            }
+
+            val workingHoursList = mutableListOf<WorkingHours>()
+
+            for (i in startIndex..openingHours.lastIndex step 2) {
+                val open = ExtWorkingOperationTime(openingHours[i], currentDay)
+
+                val potentialCloseHourId: Int = i + 1
+                var close = if (potentialCloseHourId <= openingHours.lastIndex) {
+                    ExtWorkingOperationTime(openingHours[potentialCloseHourId], currentDay)
+                } else {
+                    null
+                }
+
+                if (close == null) {
+                    var closingDay = currentDay.plus(1)
+                    loop1@ for (hours in extRestaurantData.toIteratorWrapper(closingDay)) {
+                        when {
+                            hours.isEmpty() -> {
+                                result[closingDay] = WorkingState.OpenedWholeDay
+                                closingDay = closingDay.plus(1)
+                            }
+
+                            hours.first().type == ExtType.CLOSE -> {
+                                close = ExtWorkingOperationTime(hours.first(), closingDay)
+                                break@loop1
+                            }
+                            else -> {
+                                throw ConvertException(NO_CLOSE_HOUR)
+                            }
+                        }
+                    }
+                }
+
+                close ?: throw ConvertException(NO_CLOSE_HOUR)
+
+                val workingHours = getWorkingHours(open, close)
+                workingHoursList.add(workingHours)
+            }
+
+            result[currentDay] = WorkingState.Working(workingHoursList)
+
+            currentDay = currentDay.plus(1)
+        }
+
+        return RestaurantData(result)
+    }
+
+    private fun isAllDaysFilled(map: Map<DayOfWeek, WorkingState>): Boolean = DayOfWeek
+            .values()
+            .all(map::containsKey)
+
+    private fun getFirstDayWithNonEmptyWorkingHours(
+            extRestaurantData: ExtRestaurantData
+    ): DayOfWeek? = DayOfWeek
+            .values()
+            .firstOrNull {
+                extRestaurantData.getOpeningHours(it).isNotEmpty()
+            }
 
     /**
      * If last operation type in current day is ExtType.OPEN, it means,

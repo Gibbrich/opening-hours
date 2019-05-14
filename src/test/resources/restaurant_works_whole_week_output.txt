@@ -1,0 +1,7 @@
+Monday: Opened whole day
+Tuesday: Opened whole day
+Wednesday: Opened whole day
+Thursday: 10 AM - 1 AM at next Thursday
+Friday: Opened whole day
+Saturday: Opened whole day
+Sunday: Opened whole day

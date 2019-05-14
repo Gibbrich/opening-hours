@@ -13,11 +13,23 @@ data class WorkingHours(
 fun WorkingHours.getDisplayString(): String {
     val openTime = WorkingHoursDateFormatter.format(open.time)
     val closeTime = WorkingHoursDateFormatter.format(close.time)
-    val closeDay = if (close.dayOfWeek == open.dayOfWeek || close.dayOfWeek.minus(1) == open.dayOfWeek) {
-        ""
-    } else {
-        val dayOfWeekDisplayName = close.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ENGLISH)
-        " at $dayOfWeekDisplayName"
+    val dayOfWeekDisplayName = close.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ENGLISH)
+    val closeDay = when {
+        close.dayOfWeek == open.dayOfWeek -> {
+            if (close.time < open.time) {
+                " at next $dayOfWeekDisplayName"
+            } else {
+                ""
+            }
+        }
+
+        close.dayOfWeek.minus(1) == open.dayOfWeek -> {
+            ""
+        }
+
+        else -> {
+            " at $dayOfWeekDisplayName"
+        }
     }
 
     return "$openTime - $closeTime$closeDay"

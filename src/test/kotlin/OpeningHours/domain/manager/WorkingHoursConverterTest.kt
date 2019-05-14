@@ -1,14 +1,18 @@
 package OpeningHours.domain.manager
 
 import OpeningHours.domain.model.RestaurantData
+import OpeningHours.domain.model.WorkingHours
+import OpeningHours.domain.model.WorkingOperationTime
 import OpeningHours.domain.model.WorkingState
 import OpeningHours.domain.utils.ConvertException
+import OpeningHours.domain.utils.toSingletonList
 import OpeningHours.getInputFile
 import OpeningHours.parseData
 import OpeningHours.utils.compareEquals
 import org.junit.Assert.*
 import org.junit.Test
 import java.time.DayOfWeek
+import java.util.*
 import kotlin.test.assertFailsWith
 
 private const val BASIC_INPUT = "src/test/resources/basic_input.json"
@@ -34,7 +38,18 @@ class WorkingHoursConverterTest {
     fun `if a restaurant has only close operation, it belongs to previous day`() {
         val input = "src/test/resources/monday_contains_only_close_operation_input.json"
         val restaurantData = getRestaurantData(input)
-        checkWorkingHoursAreEmpty(restaurantData, DayOfWeek.MONDAY)
+
+        val workingState = restaurantData.workingHours[DayOfWeek.MONDAY]
+        assertNotNull(workingState)
+
+        val expected = WorkingState.Working(
+                WorkingHours(
+                        WorkingOperationTime(Date(0), DayOfWeek.MONDAY),
+                        WorkingOperationTime(Date(3600 * 1000), DayOfWeek.MONDAY)
+                ).toSingletonList()
+        )
+
+        assertEquals(expected, workingState)
     }
 
     @Test
@@ -86,10 +101,31 @@ class WorkingHoursConverterTest {
         }
     }
 
+    @Test
+    fun restaurant_open_on_thursday_at_10_AM_works_whole_week_and_close_on_next_thursday_at_1_AM() {
+        val input = "src/test/resources/restaurant_works_whole_week_input.json"
+        val output = "src/test/resources/restaurant_works_whole_week_output.txt"
+        compareEquals(input, output)
+    }
+
+    @Test
+    fun restaurant_open_on_saturday_close_on_tuesday() {
+        val input = "src/test/resources/restaurant_open_on_saturday_close_on_tuesday_input.json"
+        val output = "src/test/resources/restaurant_open_on_saturday_close_on_tuesday_output.txt"
+        compareEquals(input, output)
+    }
+
+    @Test
+    fun restaurant_open_on_monday_close_on_thursday() {
+        val input = "src/test/resources/restaurant_open_on_monday_close_on_tursday_input.json"
+        val output = "src/test/resources/restaurant_open_on_monday_close_on_tursday_output.txt"
+        compareEquals(input, output)
+    }
+
     private fun getRestaurantData(input: String): RestaurantData {
         val inputFile = getInputFile(input)
         val extRestaurantData = parseData(inputFile)
-        return WorkingHoursConverter.getRestaurantData(extRestaurantData)
+        return WorkingHoursConverter.getRestaurantDataNew(extRestaurantData)
     }
 
     private fun checkWorkingHoursAreEmpty(

@@ -1,0 +1,7 @@
+Monday: Opened whole day
+Tuesday: 12 AM - 6 PM
+Wednesday: 10 AM - 6 PM
+Thursday: 10 AM - 6 PM
+Friday: 10 AM - 1 AM
+Saturday: 10 AM - 6 PM at Tuesday
+Sunday: Opened whole day
