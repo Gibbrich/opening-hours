@@ -6,12 +6,14 @@ package OpeningHours
 import OpeningHours.data.ExtOpeningHour
 import OpeningHours.data.ExtRestaurantData
 import OpeningHours.data.ExtType
+import OpeningHours.data.getOpeningHours
 import OpeningHours.domain.manager.WorkingHoursConverter
 import OpeningHours.domain.model.getDisplayString
 import OpeningHours.utils.compareEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.DayOfWeek
 
 private const val BASIC_INPUT = "src/test/resources/basic_input.json"
 
@@ -54,14 +56,14 @@ class AppTest {
     fun `a restaurant can be opened and closed multiple times during the same day`() {
         val inputFile = getInputFile(BASIC_INPUT)
         val result = parseData(inputFile)
-        assertEquals(3, result.sunday.size)
+        assertEquals(3, result.getOpeningHours(DayOfWeek.SUNDAY).size)
     }
 
     @Test
     fun `a restaurant might not be closed during the same day`() {
         val inputFile = getInputFile(BASIC_INPUT)
         val result = parseData(inputFile)
-        val noCloseEvent = result.friday.none { it.type == ExtType.CLOSE }
+        val noCloseEvent = result.getOpeningHours(DayOfWeek.FRIDAY).none { it.type == ExtType.CLOSE }
         assertTrue(noCloseEvent)
     }
 }
