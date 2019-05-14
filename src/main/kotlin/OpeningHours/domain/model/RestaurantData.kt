@@ -5,28 +5,13 @@ import java.time.format.TextStyle
 import java.util.*
 
 data class RestaurantData(
-        val workingHours: Map<DayOfWeek, List<WorkingHours>>
+        val workingHours: Map<DayOfWeek, WorkingState>
 )
 
-data class RestaurantDataNew(
-        val workingHours: Map<DayOfWeek, RestaurantWorkDetails>
-)
-
-fun RestaurantDataNew.getDisplayString(): String =
-        DayOfWeek.values().joinToString("\n", transform = ::getDisplayString)
-
-private fun RestaurantDataNew.getDisplayString(dayOfWeek: DayOfWeek): String {
-    val hours = workingHours[dayOfWeek]
-    val dayOfWeekDisplayName = dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ENGLISH)
-
-    val workingHoursDisplayString = when (hours) {
-        RestaurantWorkDetails.Closed -> "Closed"
-        RestaurantWorkDetails.OpenWholeDay -> "Opened whole day"
-        is RestaurantWorkDetails.Working -> hours.getDisplayString()
-        null -> "Closed"
-    }
-
-    return "$dayOfWeekDisplayName: $workingHoursDisplayString"
+sealed class WorkingState {
+    object Closed : WorkingState()
+    object OpenedWholeDay : WorkingState()
+    data class Working(val workingHours: List<WorkingHours>) : WorkingState()
 }
 
 fun RestaurantData.getDisplayString(): String =
@@ -36,11 +21,15 @@ private fun RestaurantData.getDisplayString(dayOfWeek: DayOfWeek): String {
     val hours = workingHours[dayOfWeek]
     val dayOfWeekDisplayName = dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ENGLISH)
 
-    val workingHoursDisplayString = if (hours.isNullOrEmpty()) {
-        "Closed"
-    } else {
-        hours.joinToString(", ", transform = WorkingHours::getDisplayString)
+    val workingStateDisplayString = when (hours) {
+        WorkingState.Closed -> "Closed"
+        WorkingState.OpenedWholeDay -> "Opened whole day"
+        is WorkingState.Working -> hours.getDisplayString()
+        null -> "Closed"
     }
 
-    return "$dayOfWeekDisplayName: $workingHoursDisplayString"
+    return "$dayOfWeekDisplayName: $workingStateDisplayString"
 }
+
+fun WorkingState.Working.getDisplayString(): String =
+        workingHours.joinToString(transform = WorkingHours::getDisplayString)

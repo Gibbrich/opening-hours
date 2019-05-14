@@ -33,7 +33,6 @@ class WorkingHoursDateFormatterTest {
         assertEquals("11.59:59 PM", result)
     }
 
-    // todo - ask about 00:00 display format
     @Test
     fun `formatted MIN_CLOSE_TIME equals 0 AM`() {
         val millis = WorkingHoursConverter.MIN_OPEN_TIME * 1000L

@@ -1,36 +1,23 @@
 package OpeningHours.domain.manager
 
 import OpeningHours.data.*
-import OpeningHours.domain.minus
 import OpeningHours.domain.model.*
-import OpeningHours.domain.range
+import OpeningHours.domain.utils.ConvertException
+import OpeningHours.domain.utils.range
 import java.time.DayOfWeek
 import java.util.*
+
+private typealias ExtWorkingOperationTime = Pair<ExtOpeningHour, DayOfWeek>
 
 object WorkingHoursConverter {
     const val MIN_OPEN_TIME = 0 // 00:00:00
     const val MAX_CLOSE_TIME = 60 * 60 * 24 - 1 // 23:59:59
 
-    // todo - change text
-    const val NO_CLOSE_HOUR = "Close hour might be either in currentDayOpeningHours, if restaurant closes the same day, or nextDayCloseHour, if restaurant closes next day."
+    const val NO_CLOSE_HOUR = "Close hour might be the last operation in current day working hours, if restaurant closes the same day, or first operation, if restaurant closes in one of the next days."
 
-    fun getWorkingHours(data: ExtRestaurantData): RestaurantData {
-        val workingHours = mapOf(
-                DayOfWeek.MONDAY to getWorkingHours(data.monday, data.tuesday),
-                DayOfWeek.TUESDAY to getWorkingHours(data.tuesday, data.wednesday),
-                DayOfWeek.WEDNESDAY to getWorkingHours(data.wednesday, data.thursday),
-                DayOfWeek.THURSDAY to getWorkingHours(data.thursday, data.friday),
-                DayOfWeek.FRIDAY to getWorkingHours(data.friday, data.saturday),
-                DayOfWeek.SATURDAY to getWorkingHours(data.saturday, data.sunday),
-                DayOfWeek.SUNDAY to getWorkingHours(data.sunday, data.monday)
-        )
-
-        return RestaurantData(workingHours)
-    }
-
-    fun getRestaurantDataNew(extRestaurantData: ExtRestaurantData): RestaurantDataNew {
+    fun getRestaurantData(extRestaurantData: ExtRestaurantData): RestaurantData {
         var currentDayId = 0
-        val result = mutableMapOf<DayOfWeek, RestaurantWorkDetails>()
+        val result = mutableMapOf<DayOfWeek, WorkingState>()
         while (currentDayId <= DayOfWeek.values().lastIndex) {
             val currentDay = DayOfWeek.of(currentDayId + 1)
             val openingHours = extRestaurantData.getOpeningHours(currentDay)
@@ -38,7 +25,7 @@ object WorkingHoursConverter {
             val isOpeningHoursContainOnlyClosePreviousDayOperation = openingHours.size == 1 && openingHours[0].type == ExtType.CLOSE
 
             if (openingHours.isEmpty() || isOpeningHoursContainOnlyClosePreviousDayOperation) {
-                result[currentDay] = RestaurantWorkDetails.Closed
+                result[currentDay] = WorkingState.Closed
                 currentDayId++
                 continue
             }
@@ -52,30 +39,24 @@ object WorkingHoursConverter {
                 1
             }
 
-            val workingHoursList = mutableListOf<WorkingHoursNew>()
+            val workingHoursList = mutableListOf<WorkingHours>()
 
             for (i in startIndex..openingHours.lastIndex step 2) {
-                val open = openingHours[i] to currentDay
+                val open = ExtWorkingOperationTime(openingHours[i], currentDay)
+
                 val potentialCloseHourId: Int = i + 1
                 val close = if (potentialCloseHourId <= openingHours.lastIndex) {
-                    openingHours[potentialCloseHourId] to currentDay
+                    ExtWorkingOperationTime(openingHours[potentialCloseHourId], currentDay)
                 } else {
-                    /**
-                     * if last operation type in current day is ExtType.OPEN, it means,
-                     * that restaurant closes at the next day. It is possible, that restaurant will
-                     * work more than 24h, so theoretically it can open on Monday at 00:00 and close on Sunday at 23:59:59.
-                     * Unfortunately, I didn't receive more precise limitations, so implementation
-                     * designed to handle described above corner case.
-                     */
                     getClosingHour(extRestaurantData, currentDay)
                 }
 
-                val workingHours = getWorkingHoursNew(open, close)
+                val workingHours = getWorkingHours(open, close)
 
                 workingHoursList.add(workingHours)
             }
 
-            result[currentDay] = RestaurantWorkDetails.Working(workingHoursList)
+            result[currentDay] = WorkingState.Working(workingHoursList)
 
             val closeDay = workingHoursList.last().close.dayOfWeek
 
@@ -83,7 +64,7 @@ object WorkingHoursConverter {
                 currentDayId++
             } else {
                 for (day in currentDay.plus(1).range(closeDay)) {
-                    result[day] = RestaurantWorkDetails.OpenWholeDay
+                    result[day] = WorkingState.OpenedWholeDay
                 }
 
                 if (closeDay < currentDay) {
@@ -94,14 +75,21 @@ object WorkingHoursConverter {
             }
         }
 
-        return RestaurantDataNew(result)
+        return RestaurantData(result)
     }
 
 
+    /**
+     * If last operation type in current day is ExtType.OPEN, it means,
+     * that restaurant closes at the next day. It is possible, that restaurant will
+     * work more than 24h, so theoretically it can open on Monday at 00:00 and close on Sunday at 23:59:59.
+     * Unfortunately, I didn't receive more precise limitations, so implementation
+     * designed to handle described above corner case.
+     */
     private fun getClosingHour(
             extRestaurantData: ExtRestaurantData,
             currentDay: DayOfWeek
-    ): Pair<ExtOpeningHour, DayOfWeek> {
+    ): ExtWorkingOperationTime {
         var closingDay = currentDay.plus(1)
         for (hours in extRestaurantData.toIteratorWrapper(closingDay)) {
             when {
@@ -110,117 +98,34 @@ object WorkingHoursConverter {
                 }
 
                 hours.first().type == ExtType.CLOSE -> {
-                    return hours.first() to closingDay
+                    return ExtWorkingOperationTime(hours.first(), closingDay)
                 }
                 else -> {
-                    throw IllegalArgumentException() // todo - add description
+                    throw ConvertException(NO_CLOSE_HOUR)
                 }
             }
         }
 
-        throw IllegalArgumentException(NO_CLOSE_HOUR)
+        throw ConvertException(NO_CLOSE_HOUR)
     }
 
     private fun getWorkingHours(
-            currentDayOpeningHours: List<ExtOpeningHour>,
-            nextDayOpeningHours: List<ExtOpeningHour>
-    ): List<WorkingHours> {
-        val nextDayCloseHour = if (nextDayOpeningHours.isNotEmpty() && nextDayOpeningHours[0].type == ExtType.CLOSE) {
-            nextDayOpeningHours[0]
-        } else {
-            null
-        }
-
-        return getWorkingHours(currentDayOpeningHours, nextDayCloseHour)
-    }
-
-    private fun getWorkingHours(
-            currentDayOpeningHours: List<ExtOpeningHour>,
-            nextDayCloseHour: ExtOpeningHour?
-    ): List<WorkingHours> {
-        val isDataContainOnlyClosePreviousDayOperation = currentDayOpeningHours.size == 1 && currentDayOpeningHours[0].type == ExtType.CLOSE
-        if (currentDayOpeningHours.isEmpty() || isDataContainOnlyClosePreviousDayOperation) {
-            return emptyList()
-        }
-
-        // if currentDayOpeningHours starts with ExtType.CLOSE,
-        // it means, that previous working day was closed today, so we need
-        // start with the next one
-        val startIndex = if (currentDayOpeningHours[0].type == ExtType.OPEN) {
-            0
-        } else {
-            1
-        }
-
-        val result = mutableListOf<WorkingHours>()
-
-        for (i in startIndex..currentDayOpeningHours.lastIndex step 2) {
-            val open = currentDayOpeningHours[i]
-            val close = getCloseHour(i + 1, currentDayOpeningHours, nextDayCloseHour)
-            val workingHours = getWorkingHours(open, close)
-
-            result.add(workingHours)
-        }
-
-        return result
-    }
-
-    private fun getCloseHour(
-            potentialCloseHourId: Int,
-            currentDayOpeningHours: List<ExtOpeningHour>,
-            nextDayCloseHour: ExtOpeningHour?
-    ) = when {
-        potentialCloseHourId <= currentDayOpeningHours.lastIndex -> {
-            currentDayOpeningHours[potentialCloseHourId]
-        }
-
-        nextDayCloseHour != null -> {
-            nextDayCloseHour
-        }
-
-        else -> {
-            throw IllegalArgumentException(NO_CLOSE_HOUR)
-        }
-    }
-
-    private fun getWorkingHours(
-            open: ExtOpeningHour,
-            close: ExtOpeningHour
+            open: ExtWorkingOperationTime,
+            close: ExtWorkingOperationTime
     ): WorkingHours = when {
-        open.type != ExtType.OPEN || close.type != ExtType.CLOSE -> {
-            throw IllegalArgumentException("Incorrect ordering of working hours: open = $open, close = $close")
+        open.first.type != ExtType.OPEN || close.first.type != ExtType.CLOSE -> {
+            throw ConvertException("Incorrect ordering of working hours: open = ${open.first}, close = ${close.first}")
         }
 
-        open.value < MIN_OPEN_TIME || close.value > MAX_CLOSE_TIME -> {
-            throw IllegalArgumentException("Open and close time must be in [$MIN_OPEN_TIME; $MAX_CLOSE_TIME]. Open: $open, close: $close")
+        open.first.value < MIN_OPEN_TIME || close.first.value > MAX_CLOSE_TIME -> {
+            throw ConvertException("Open and close time must be in [$MIN_OPEN_TIME; $MAX_CLOSE_TIME]. Open: $open, close: $close")
         }
 
         else -> {
             WorkingHours(
-                    Date(open.value * 1000),
-                    Date(close.value * 1000)
+                    WorkingOperationTime(Date(open.first.value * 1000), open.second),
+                    WorkingOperationTime(Date(close.first.value * 1000), close.second)
             )
         }
     }
-
-    private fun getWorkingHoursNew(
-            open: Pair<ExtOpeningHour, DayOfWeek>,
-            close: Pair<ExtOpeningHour, DayOfWeek>
-    ): WorkingHoursNew = when {
-        open.first.type != ExtType.OPEN || close.first.type != ExtType.CLOSE -> {
-            throw IllegalArgumentException("Incorrect ordering of working hours: open = ${open.first}, close = ${close.first}")
-        }
-
-        open.first.value < MIN_OPEN_TIME || open.first.value > MAX_CLOSE_TIME -> {
-            throw IllegalArgumentException("Open and close time must be in [$MIN_OPEN_TIME; $MAX_CLOSE_TIME]. Open: $open, close: $close")
-        }
-
-        else -> {
-            WorkingHoursNew(
-                    Operation(Date(open.first.value * 1000), open.second),
-                    Operation(Date(close.first.value * 1000), close.second)
-            )
-        }
-    }
-
 }

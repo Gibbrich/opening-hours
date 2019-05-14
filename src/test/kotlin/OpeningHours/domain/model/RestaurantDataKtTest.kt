@@ -10,16 +10,16 @@ class RestaurantDataKtTest {
     @Test
     fun `getDisplayString separates working hours using comma, if working hours for a day is empty, prints Closed`() {
         val restaurantData = RestaurantData(mapOf(
-                DayOfWeek.MONDAY to listOf(
+                DayOfWeek.MONDAY to WorkingState.Working(listOf(
                         WorkingHours(
-                                Date(36000 * 1000L),
-                                Date(64800 * 1000L)
+                                WorkingOperationTime(Date(36000 * 1000L), DayOfWeek.MONDAY),
+                                WorkingOperationTime(Date(64800 * 1000L), DayOfWeek.MONDAY)
                         ),
                         WorkingHours(
-                                Date(68400 * 1000L),
-                                Date(72000 * 1000L)
+                                WorkingOperationTime(Date(68400 * 1000L), DayOfWeek.MONDAY),
+                                WorkingOperationTime(Date(72000 * 1000L), DayOfWeek.MONDAY)
                         )
-                )
+                ))
         ))
 
         val result = restaurantData.getDisplayString()
