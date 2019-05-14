@@ -1,14 +1,14 @@
 package OpeningHours.domain.manager
 
-import OpeningHours.domain.model.RestaurantData
+import OpeningHours.domain.model.RestaurantDataNew
+import OpeningHours.domain.model.RestaurantWorkDetails
 import OpeningHours.getInputFile
 import OpeningHours.parseData
 import OpeningHours.utils.compareEquals
 import org.junit.Assert.*
-import kotlin.test.*
 import org.junit.Test
-import java.lang.IllegalArgumentException
 import java.time.DayOfWeek
+import kotlin.test.assertFailsWith
 
 private const val BASIC_INPUT = "src/test/resources/basic_input.json"
 
@@ -46,13 +46,11 @@ class WorkingHoursConverterTest {
         assertEquals(WorkingHoursConverter.NO_CLOSE_HOUR, exception.message)
     }
 
-    // todo - ask, whether restaurant can work > 24 hrs
     @Test
-    fun `exception thrown if a restaurant last operation of previous day is open and next day working hours is empty`() {
-        val input = "src/test/resources/invalid_input/thursday_last_operation_open_friday_empty.json"
-        assertFailsWith<IllegalArgumentException> {
-            getRestaurantData(input)
-        }
+    fun `restaurant closes at the day after tomorrow`() {
+        val input = "src/test/resources/restaurant_open_on_saturday_close_on_monday_input.json"
+        val output = "src/test/resources/restaurant_open_on_saturday_close_on_monday_output.txt"
+        compareEquals(input, output)
     }
 
     @Test
@@ -87,19 +85,18 @@ class WorkingHoursConverterTest {
         }
     }
 
-    private fun getRestaurantData(input: String): RestaurantData {
+    private fun getRestaurantData(input: String): RestaurantDataNew {
         val inputFile = getInputFile(input)
         val extRestaurantData = parseData(inputFile)
-        return WorkingHoursConverter.getWorkingHours(extRestaurantData)
+        return WorkingHoursConverter.getRestaurantDataNew(extRestaurantData)
     }
 
     private fun checkWorkingHoursAreEmpty(
-            restaurantData: RestaurantData,
+            restaurantData: RestaurantDataNew,
             dayOfWeek: DayOfWeek
     ) {
         val workingHours = restaurantData.workingHours[dayOfWeek]
         assertNotNull(workingHours)
-        // todo - rewrite to null
-        assertTrue(workingHours!!.isEmpty())
+        assertTrue(workingHours is RestaurantWorkDetails.Closed)
     }
 }

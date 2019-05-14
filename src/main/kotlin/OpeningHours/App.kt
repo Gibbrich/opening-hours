@@ -10,7 +10,7 @@ fun main(args: Array<String>) {
     val arguments = getArguments(args)
     val inputFile = getInputFile(arguments.inputFilePath)
     val extRestaurantData = parseData(inputFile)
-    val restaurantData = WorkingHoursConverter.getWorkingHours(extRestaurantData)
+    val restaurantData = WorkingHoursConverter.getRestaurantDataNew(extRestaurantData)
     val result = restaurantData.getDisplayString()
 
     if (arguments.outputFilePath == null) {

@@ -1,8 +1,8 @@
 package OpeningHours.data
 
 import com.google.gson.annotations.SerializedName
+import java.time.DayOfWeek
 
-// todo ask, whether data can be incorrect; whether data can be unsorted in time order; whether sunday may close in monday
 data class ExtRestaurantData(
         @SerializedName("monday")
         val monday: List<ExtOpeningHour>,
@@ -26,3 +26,15 @@ data class ExtRestaurantData(
         val sunday: List<ExtOpeningHour>
 
 )
+
+fun ExtRestaurantData.toIteratorWrapper(start: DayOfWeek) = ExtRestaurantDataWrapper(this, start)
+
+fun ExtRestaurantData.getOpeningHours(dayOfWeek: DayOfWeek) = when (dayOfWeek) {
+    DayOfWeek.MONDAY -> monday
+    DayOfWeek.TUESDAY -> tuesday
+    DayOfWeek.WEDNESDAY -> wednesday
+    DayOfWeek.THURSDAY -> thursday
+    DayOfWeek.FRIDAY -> friday
+    DayOfWeek.SATURDAY -> saturday
+    DayOfWeek.SUNDAY -> sunday
+}
