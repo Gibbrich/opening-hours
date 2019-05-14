@@ -125,7 +125,7 @@ class WorkingHoursConverterTest {
     private fun getRestaurantData(input: String): RestaurantData {
         val inputFile = getInputFile(input)
         val extRestaurantData = parseData(inputFile)
-        return WorkingHoursConverter.getRestaurantDataNew(extRestaurantData)
+        return WorkingHoursConverter.getRestaurantData(extRestaurantData)
     }
 
     private fun checkWorkingHoursAreEmpty(

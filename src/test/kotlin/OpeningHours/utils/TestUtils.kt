@@ -9,7 +9,7 @@ import org.junit.Assert
 fun compareEquals(input: String, output: String) {
     val inputFile = getInputFile(input)
     val data = parseData(inputFile)
-    val restaurantData = WorkingHoursConverter.getRestaurantDataNew(data)
+    val restaurantData = WorkingHoursConverter.getRestaurantData(data)
     val expected = getInputFile(output).readText()
     val result = restaurantData.getDisplayString()
 
