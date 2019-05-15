@@ -15,7 +15,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.DayOfWeek
 
-private const val BASIC_INPUT = "src/test/resources/basic_input.json"
+private const val BASIC_INPUT = "src/test/resources/integration/random/basic_input.json"
 
 private val BASIC_DATA = ExtRestaurantData(
         monday = emptyList(),
